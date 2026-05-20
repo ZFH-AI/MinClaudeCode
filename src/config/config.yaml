@@ -42,7 +42,7 @@ base_path:
   logs_root: "log/"          # log默认输出目录
   backups_root: "backups/"   # 备份根目录
   spec_root: "spec/"         # 需求规格根目录
-  skill_root: "skill/"       # skill根目录
+  skill_root: "src/skill/"       # skill根目录
 
 # 命令行界面配置
 cli:
