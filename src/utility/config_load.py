@@ -3,6 +3,9 @@ import os
 from pathlib import Path
 from types import SimpleNamespace
 
+"""
+加载 config.yaml文件，并将文件转成通过 点号 访问模式
+"""
 def _dict_to_namespace(obj):
     """递归把字典转成 SimpleNamespace，支持点号访问"""
     if isinstance(obj, dict):
