@@ -6,26 +6,34 @@ from pathlib import Path
 import os
 from utility.skill_load import get_skill_loader
 
-# 读取system prompt 的markdown文件 + 读取skill的markdown文件（如果有）
-# 将读取的内容作为 system prompt 以供LLM使用
-def load_system_prompt() -> list[dict]:
+""""
+ 读取系统提示词
+Anthropic 的 system 参数接受两种格式
+-1、system="You are a helpful assistant."
+-2、数组（用于多段系统提示）：system=[{"type": "text", "text": "第一段"}, {"type": "text", "text": "第二段"}]
+"""
+def load_system_prompt():
+    system_prompt = None
     md_path = Path(__file__).with_name("sys_prompt.md")
-    base_prompt = ""
     if md_path.exists():
-        base_prompt = md_path.read_text(encoding="utf-8")
+        sys_prompt = md_path.read_text(encoding="utf-8")
+        system_prompt =[{"type": "text", "text": sys_prompt}]
 
-    # 追加 L1 技能清单（如果有）
+    return system_prompt
+
+# 读取src/skill目录下的所有 SKILLS的meta data数据
+def load_skills_meta_data():
+    skill_meta_data = None
     skill_loader = get_skill_loader()
-    skills_section = skill_loader.format_skills_prompt()
-    if skills_section:
-        base_prompt = base_prompt + "\n\n" + skills_section
+    if skill_loader is not None:
+        skill_meta_data = skill_loader.get_metadata()
 
-    return [{"role": "system", "content": base_prompt}]
+    return skill_meta_data
 
-# 读取 MinClaude.md 作为上下文注入
-def load_context(filename:str) -> dict[str,str]:
+
+# 从 src/config/中读取指定文件 fileName
+def load_context(filename:str, prefix_str:str) -> dict[str,str]:
     try:
-        # 从 src/config/fileName
         project_root = Path(__file__).resolve().parent.parent
         config_path = os.path.join(str(project_root), "config", filename)
 
@@ -36,26 +44,31 @@ def load_context(filename:str) -> dict[str,str]:
             project_context = f.read()
             context_msg = {
                 "role": "user",
-                "content": f"[项目上下文]\n{project_context}"
+                "content": f"[{prefix_str}]\n{project_context}"
             }
             return context_msg
     except (OSError, UnicodeDecodeError) as e:
-        # 可选：打印警告，但不阻断主流程
         print(f"[warn] 加载 {filename} 失败: {e}")
         return {"role": "user", "content": ""}
 
 class Messages:
     def __init__(self):
-        # 1、从同目录加载 sys_prompt.md + skill 作为系统提示词
-        self.input_to_model_msg = load_system_prompt()
+        # 用户输入
+        self.input_to_model_msg = []
 
-        # 2、注入项目上下文（放在系统提示词之后、用户输入之前）
-        project_context = load_context("MinClaudeCode.md")
-        self.update_msg(project_context)
+        # 1、加载 system prompt
+        self.system_prompt = load_system_prompt()
 
-        # 3、注入目录树缓存（放在项目上下文之后、用户输入之前）
-        tree_cache = load_context(".tree_cache.md")
-        self.update_msg(tree_cache)
+        # 2、加载 skills 的元数据
+        self.skills_meta_data = load_skills_meta_data()
+
+        # 3、注入项目上下文
+        self.project_context = load_context("MinClaudeCode.md", "项目上下文")
+        self.update_msg(self.project_context)
+
+        # 4、注入目录树缓存（放在项目上下文之后）
+        self.tree_cache = load_context(".tree_cache.md", "项目目录树")
+        self.update_msg(self.tree_cache)
 
     # 尾部添加微信息
     def append_micro_info(self, role, micro_info):
@@ -86,3 +99,9 @@ class Messages:
 
     def get_msg(self):
         return self.input_to_model_msg
+
+    def get_skills_meta_data(self):
+        return self.skills_meta_data
+
+    def get_system_prompt(self):
+        return self.system_prompt
