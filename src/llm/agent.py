@@ -1,21 +1,38 @@
 from contextlib import AbstractContextManager
 from enum import Enum
 from typing import Callable, Dict
-from llm_model import *
+
+from llm import llm_model
 from message import msg_mng
 from utility.config_load import get_global_cfg
 from datetime import datetime
 
+"""
+Agent主程序  与LLM交互
+"""
 class ChatModelState(Enum):
     quit_by_no_tool = 1
     quit_by_done = 2
     keep_continue = 3
+
+# 将 Skills 元数据转换为 tools 列表
+def build_tools_from_skills(meta_data):
+    tools = []
+    for skill in meta_data:
+        tool = {
+            "name": skill["name"],
+            "description": skill["description"],
+            "input_schema": skill["input_schema"]  # 动态生成的部分
+        }
+        tools.append(tool)
+    return tools
 
 # 负责与LLM交互
 class AgentLoop:
     def __init__(self, print_think :bool = False):
         self.print_think = print_think
         self.api_messages = None
+        self.mng_msg = None
         self.session = None
         self._print_info = None
         self._print_llm_rsp = None
@@ -44,24 +61,23 @@ class AgentLoop:
 
         turn = 0
         quit_chat = ChatModelState.keep_continue
-        self.api_messages = msg_mng.Messages()
+        self.mng_msg = msg_mng.Messages()
         # self.session = SessionLog()
         self.max_turns = get_global_cfg.cli.max_turns
         self.is_chat_mode = True
 
+        # skill中MetaData转成deepseek中的TOOLS，在于LLM交互时使用
+        TOOLS = build_tools_from_skills(self.mng_msg.get_skills_meta_data())
+        SYSTEM = self.mng_msg.get_system_prompt()
+
         while turn < self.max_turns:
             turn += 1
-
             # 1、与LLM交互，优化界面显示， 界面显示 "Thinking"
             with on_context_mgr(f"Thinking-{turn}"):
-                thinking_begin = self._on_llm_req(turn, message)
-                ai_response, is_truncated, reasoning_content = chat_llm.chat_with_retry(self.api_messages.get_msg())
+                response = llm_model.llm_interaction_retry(self.mng_msg.get_msg(), TOOLS, SYSTEM)
+                print(response)
+                break
 
-            # 解析LLM的反馈
-            tools = self._on_llm_rsp(turn, thinking_begin, ai_response, reasoning_content)
-
-            # 工具处理
-            quit_chat = self._handle_tools(tools)
 
             if not quit_chat == ChatModelState.keep_continue:  # 如果不是继续chat，那就break循环
                 break
@@ -69,41 +85,3 @@ class AgentLoop:
         # 查看退出循环是否是达到循环上限
         if turn >= self.max_turns and quit_chat == ChatModelState.keep_continue:
             self._print_info(f"达到最大轮次限制 ({self.max_turns})，强制结束!")
-
-        # 确保最后一个 Turn 的内容被持久化
-        # self.session.flush_turn()
-
-        # 估算tokens
-        #req_tokens, rsp_tokens = self.session.get_tokens()
-        #self.req_tokens += req_tokens
-        #self.rsp_tokens += rsp_tokens
-
-    def _on_llm_req(self, turn:int, message):
-        # 首次运行，赋初值
-        if turn == 1:
-            self.api_messages.init_msg(message)
-            # self.session.init_session()
-
-        # 倒数最后一轮，插入提醒命令
-        if turn == self.max_turns and not self.is_chat_mode:
-            command = "命令：如果你已完成所有修改，请立即调用 <llm_tool>done</llm_tool> 结束任务。不要继续调用其他工具。"
-            self.api_messages.append_micro_info("user", command)
-
-        # 事前记录轮次及发送给LLM的req
-        #self.session.log_turn(turn)
-        #self.session.log_llm_req(self.api_messages.get_msg())
-
-        # LLM开启回答时间戳
-        thinking_begin = datetime.now().strftime("%Y-%m-%d %H : %M : %S")
-
-        return thinking_begin
-
-    def _on_llm_rsp(self, turn, thinking_begin, ai_response, reasoning_content):
-        # LLM结束回答时间戳
-        thinking_end = datetime.now().strftime("%Y-%m-%d %H : %M : %S")
-
-        # 记录推理内容（如果提供商支持）
-        #self.session.log_reasoning_content(reasoning_content)
-
-        # 记录LLM回应的原始内容（日志保留完整内容）
-        #self.session.log_llm_rsp(ai_response)
