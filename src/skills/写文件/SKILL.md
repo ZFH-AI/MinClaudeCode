@@ -1,0 +1,58 @@
+---
+name: write_file
+description: '将内容写入指定路径的文件。如果文件不存在则创建，如果存在则根据模式覆盖或追加。适用于生成代码、报告、配置等文本文件。'
+input_schema:
+  type: object
+  properties:
+    file_path:
+      type: string
+      description: '目标文件的绝对路径或相对于工作区根目录的路径。例如: "output/report.md" 或 "/data/config.json"'
+    content:
+      type: string
+      description: '要写入文件的完整文本内容。支持多行字符串，包含代码、文本等。'
+    mode:
+      type: string
+      enum: ["write", "append"]
+      description: '写入模式。write：覆盖原文件（默认）；append：追加到文件末尾。'
+      default: "write"
+    encoding:
+      type: string
+      description: '文件编码，默认为 utf-8'
+      default: "utf-8"
+  required:
+    - file_path
+    - content
+---
+
+# 写文件工具详细说明
+
+## 功能
+该工具用于将文本内容安全地写入文件系统。适用于生成代码文件、记录日志、保存配置等场景。
+
+## 执行逻辑
+1. 解析 `file_path`，确保路径合法且不包含路径穿越风险（如 `../`）。
+2. 检查目标目录是否存在，若不存在则自动创建（递归）。
+3. 根据 `mode` 决定写入行为：
+   - `write`：以覆盖模式打开文件，清空原有内容。
+   - `append`：以追加模式打开文件，将内容添加到末尾。
+4. 使用 `encoding` 指定的编码写入 `content` 字符串。
+5. 返回操作结果（成功或错误信息）。
+
+## 错误处理
+- 路径非法或受保护：返回 `[ERROR: 路径被拒绝]`
+- 权限不足：返回 `[ERROR: 无法写入，权限被拒绝]`
+- 磁盘满或 IO 错误：返回 `[ERROR: 写入失败，详情...]`
+
+## 示例
+用户请求：“把这段 Python 代码保存到 main.py”
+模型应调用：
+```json
+{
+  "name": "write_file",
+  "input": {
+    "file_path": "main.py",
+    "content": "print('Hello, world!')",
+    "mode": "write",
+    "encoding": "utf-8"
+  }
+}
