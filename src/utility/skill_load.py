@@ -1,4 +1,5 @@
 import re
+import yaml
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from utility.config_load import get_global_cfg
@@ -10,20 +11,26 @@ from utility.config_load import get_global_cfg
 """
 
 # 解析文件，将其
-def _parse_frontmatter(text: str) -> dict[Any, Any]:
-    match = re.match(r"^---\n(.*?)\n---\n(.*)", text, re.DOTALL)
-    if not match:
-        return {}
+def _parse_frontmatter(skill_path:Path) -> dict[Any, Any] | None:
+    try:
+        content = skill_path.read_text(encoding="utf-8")
+        # 正在匹配 --- 开头和结尾
+        frontmatter_pattern = r'^---\s*\n(.*?)\n---\s*\n'
+        match = re.match(frontmatter_pattern, content, re.DOTALL)
+        if not match:
+            return None
 
-    meta = {}
-    for line in match.group(1).strip().splitlines():
-        if ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        meta[key.strip()] = value.strip()
+        frontmatter_str = match.group(1)
+        metadata = yaml.safe_load(frontmatter_str)
+        # 确保必要字段存在
+        required_fields = ['name', 'description', 'input_schema']
+        for field in required_fields:
+            if field not in metadata:
+                raise ValueError(f"{skill_path} 缺少字段: {field}")
 
-    return meta
-
+        return metadata
+    except Exception as e:
+        raise ValueError(f"{e}")
 
 class SkillLoader:
     def __init__(self, skill_path: Path):
@@ -44,22 +51,16 @@ class SkillLoader:
             self._metadata_cache = result
             return result
 
-        for skill_path in sorted(self.skill_path.iterdir()):
-            if not skill_path.is_dir():
+        for path in sorted(self.skill_path.iterdir()):
+            if not path.is_dir():
                 continue
-
-            skill_md = skill_path / "SKILL.md"
+            skill_md = path / "SKILL.md"
             if not skill_md.exists() or not skill_md.is_file():
-                continue
-
-            try:
-                content = skill_md.read_text(encoding="utf-8")
-                # 按照skill的路径读取skill的内容，将元数据保存在meta中，其他完整信息保存在body中
-                meta = _parse_frontmatter(content)
-                if meta and "name" in meta:
-                    result.append({"name": meta["name"], "description": meta["description"]})
-            except Exception:
-                continue
+               continue
+            # 按照skill的路径读取skill的内容，将元数据保存在meta中，其他完整信息保存在body中
+            meta = _parse_frontmatter(skill_md)
+            if meta and "name" in meta:
+                result.append(meta)
 
         self._metadata_cache = result
         return result
@@ -107,9 +108,9 @@ class SkillLoader:
 
     # 提供对外函数
     def get_metadata(self) -> List[Dict[str, str]] | None:
-       return self._scan_skill_md()
+        return self._scan_skill_md()
 
-    def format_skill_to_prompt(self) -> str:
+    def format_skill_to_prompt(self) -> str | None:
         metadate = self._scan_skill_md()
         if not metadate:
             return ""
@@ -132,6 +133,6 @@ _skill_loader: Optional[SkillLoader] = None
 def get_skill_loader() -> SkillLoader | None:
     global _skill_loader
     if _skill_loader is None:
-        skill_root = Path(get_global_cfg.base_path.skill_root) / "skill"
+        skill_root = Path(get_global_cfg.base_path.skill_root)
         _skill_loader = SkillLoader(skill_root)
     return _skill_loader
