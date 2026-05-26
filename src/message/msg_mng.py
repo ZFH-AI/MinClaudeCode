@@ -94,8 +94,7 @@ class Messages:
         self.update_msg(msg)
 
     def update_msg(self, msg):
-        if msg["content"] is not None:
-            self.input_to_model_msg.append(msg)
+        self.input_to_model_msg.append(msg)
 
     def get_msg(self):
         return self.input_to_model_msg
