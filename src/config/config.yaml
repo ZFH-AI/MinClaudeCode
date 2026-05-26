@@ -3,9 +3,9 @@
 
 # 模型类型
 DeepSeek:
-  api_key: "***"
-  base_url: "https://api.deepseek.com"
-  model_name: "deepseek-v4-pro"
+  api_key: "sk-d6545a933eee4b429bd43c198c4026d7"
+  base_url: "https://api.deepseek.com/anthropic"
+  model_name: "deepseek-chat"
 
 Qwen:
   api_key: "***"
@@ -38,11 +38,11 @@ memory:
 # 项目基本目录结构
 base_path:
   project_root: "."           # 项目根目录
-  code_output_root: "src/"   # AI 生成代码的默认输出目录
+  code_output_root: "./src/output/"   # AI 生成代码的默认输出目录
   logs_root: "log/"          # log默认输出目录
   backups_root: "backups/"   # 备份根目录
   spec_root: "spec/"         # 需求规格根目录
-  skill_root: "src/skill/"       # skill根目录
+  skill_root: "./src/skills/"       # skill根目录
 
 # 命令行界面配置
 cli:
