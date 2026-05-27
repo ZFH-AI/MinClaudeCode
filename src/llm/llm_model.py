@@ -1,132 +1,145 @@
 import httpx
 from anthropic import Anthropic
-from utility.config_load import get_global_cfg
-import json
 from typing import List, Dict, Any, Tuple
+from llm.comm import *
 
-# 读取配置信息中的链接模型的的相关参数
-MODEL_PROVIDER = get_global_cfg.model.provider
-provider_cfg = getattr(get_global_cfg, MODEL_PROVIDER, None)
-if provider_cfg:
-    api_key = getattr(provider_cfg, "api_key", None)
-    base_url = getattr(provider_cfg, "base_url", None)
-    model_name = getattr(provider_cfg, "model_name", "deepseek-chat")
-else:
-    raise ValueError(f"未知的模型供应商: {MODEL_PROVIDER}")
+class LLMClient:
+    def __init__(self):
+        # 读取配置信息中的链接模型的的相关参数
+        self.MODEL_PROVIDER = get_global_cfg.model.provider
+        self.provider_cfg = getattr(get_global_cfg, self.MODEL_PROVIDER, None)
+        if not self.provider_cfg:
+            raise ValueError(f"未知的模型供应商: {self.MODEL_PROVIDER}")
 
-initial_max_tokens = get_global_cfg.model_chat.initial_max_tokens
-max_retries = get_global_cfg.model_chat.max_retries
-max_tokens_limit = get_global_cfg.model_chat.max_tokens_limit
-temperature=get_global_cfg.model_chat.temperature
+        self.api_key = getattr(self.provider_cfg, "api_key", None)
+        self.base_url = getattr(self.provider_cfg, "base_url", None)
+        self.model_name = getattr(self.provider_cfg, "model_name", "deepseek-chat")
+        self.temperature = get_global_cfg.model_chat.temperature
+        self.choice_stream = getattr(self.provider_cfg, "choice_stream", True)
+        self.http_client = httpx.Client(verify=False)
 
-# 创建交互客户端
-http_client = httpx.Client(verify=False)
-client = Anthropic(api_key=api_key, base_url=base_url, http_client=http_client)
+        # 创建交互窗口
+        self.client = Anthropic(api_key=self.api_key, base_url=self.base_url, http_client=self.http_client)
 
+    def stream_chat(self, messages, system, tools, max_tokens) -> Tuple[str, List[Dict], str]:
+        try:
+            response = self.client.messages.create(model=self.model_name, system=system, messages=messages,
+                tools=tools,  max_tokens=max_tokens, temperature=self.temperature, stream=self.choice_stream
+            )
+        except Exception as e:
+            raise RuntimeError(f"LLM API 调用失败: {e}") from e
 
-def stream_chat_anthropic(messages, system, tools, max_tokens):
-    try:
-        response = client.messages.create(
-            model=model_name,
-            system=system,
-            messages=messages,
-            tools=tools,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            stream=True
-        )
-        # 解析流式输出
-        full_content = ""
-        current_tool_call = None
-        tool_calls = []
+        full_text = ""
+        current_tool = None  # 正在构建的工具调用
+        tool_calls: List[Dict] = []
         stop_reason = None
+        incomplete_tool = False  # 标记是否存在未完成的工具调用
 
         for chunk in response:
-            # 调试用，生产环境可注释
-            # print(">>", chunk.type)
+            chunk_type = chunk.type
+            if chunk_type == "message_start":
+                continue
 
-            # 匹配流反馈中的各个类型
-            match chunk.type:
-                case "message_start":
-                    continue
-                case "content_block_start":
-                    if chunk.content_block.type == "tool_use":
-                        current_tool_call = {
-                            "id": chunk.content_block.id,
-                            "name": chunk.content_block.name,
-                            "input": ""
-                        }
+            elif chunk_type == "content_block_start":
+                block = chunk.content_block
+                if block.type == "tool_use":
+                    current_tool = {
+                        "id": block.id,
+                        "name": block.name,
+                        "input": ""  # 先累积 JSON 字符串
+                    }
 
-                case "content_block_delta":
-                    if chunk.delta.type == "text_delta":
-                        full_content += chunk.delta.text
+            elif chunk_type == "content_block_delta":
+                delta = chunk.delta
+                if delta.type == "text_delta":
+                    full_text += delta.text
+                elif delta.type == "input_json_delta":
+                    if current_tool is not None:
+                        current_tool["input"] += delta.partial_json
 
-                    if chunk.delta.type == "input_json_delta":
-                        if current_tool_call:
-                            current_tool_call["input"] += chunk.delta.partial_json
+            elif chunk_type == "content_block_stop":
+                if current_tool is not None:
+                    try:
+                        # 解析工具输入的 JSON
+                        current_tool["input"] = json.loads(current_tool.pop("input"))
+                    except json.JSONDecodeError as e:
+                        # 解析失败时可选择丢弃或保留原始字符串，这里丢弃并继续
+                        current_tool = None
+                        continue
+                    tool_calls.append(current_tool)
+                    current_tool = None
 
-                case "content_block_stop":
-                    if current_tool_call:
-                        #tool_calls.append(current_tool_call)
-                        #current_tool_call = None
-                        # 解析 JSON 字符串为字典
-                        try:
-                            current_tool_call["input"] = json.loads(current_tool_call["input"])
-                        except json.JSONDecodeError:
-                            # 保持原始字符串，上层自行处理
-                            pass
-                        tool_calls.append(current_tool_call)
-                        current_tool_call = None
+            elif chunk_type == "message_delta":
+                stop_reason = getattr(chunk.delta, 'stop_reason', stop_reason)
 
-                case "message_delta":
-                    if hasattr(chunk.delta, 'stop_reason'):
-                        stop_reason = chunk.delta.stop_reason
+            elif chunk_type == "message_stop":
+                # 流结束时，若 current_tool 仍有值，说明工具调用不完整
+                if current_tool is not None:
+                    incomplete_tool = True
+                    current_tool = None  # 丢弃不完整调用
+                break
 
-                case "message_stop":
-                    break
+        # 统一处理 stop_reason
+        if stop_reason is None:
+            stop_reason = "end_turn"  # 默认正常结束
 
-                case _ :
-                    continue
-                
-        is_truncated = (stop_reason == "max_tokens")
-        if is_truncated:
-            full_content += "\n[注意：输出被 max_tokens 截断]"
+        # 若因 max_tokens 截断且有不完整工具调用，视为无效，清空工具列表
+        if stop_reason == "max_tokens" and incomplete_tool:
+            print("max_tokens 截断导致不完整工具调用，丢弃该调用。")
+            tool_calls = []
 
-        return full_content, tool_calls, is_truncated
-    except Exception as e:
-        return f"[API_ERROR: 流式读取异常，{e}]", "", True
+        return full_text, tool_calls, stop_reason
 
-
-# 可选：衔接截断内容的辅助函数（解决重试时的“续写”问题）
-def append_continuation(original_messages, already_generated_content):
     """
-    当因 max_tokens 截断时，将已生成的内容作为 assistant 消息追加，
-    再追加一条 user 消息要求继续，实现无缝续写。
+    带重试的 LLM 交互：
+     - 若输出截断（max_tokens）且未产生工具调用，尝试续写文本；
+     - 若截断且工具调用不完整（已被 stream_chat 丢弃），则增加 max_tokens 重试；
+     - 达到最大重试或限制时返回当前结果。
     """
-    new_messages = original_messages.copy()
-    new_messages.append({"role": "assistant", "content": already_generated_content})
-    new_messages.append({"role": "user", "content": "请继续输出，不要重复已给出的内容。"})
-    return new_messages
+    def interaction_with_retry(self, messages: List[Dict], tools: List[Dict], system: str) -> Tuple[str, List[Dict], str]:
+        max_retries = get_global_cfg.model_chat.max_retries
+        max_tokens_limit = get_global_cfg.model_chat.max_tokens_limit
+        current_max_tokens = get_global_cfg.model_chat.initial_max_tokens
 
-# 带重试的主流程
-def llm_interaction_retry(messages, TOOLS, SYSTEM):
-    max_token = initial_max_tokens
-    for attempt in range(max_retries + 1):
-        full_content, tool_calls, is_truncated = stream_chat_anthropic(messages, SYSTEM, TOOLS, max_token)
+        # 保留原始消息副本，用于可能的重试/续写
+        working_messages = [m.copy() for m in messages]
+        for attempt in range(max_retries + 1):
+            try:
+                full_text, tool_calls, stop_reason = self.stream_chat(working_messages, system, tools, current_max_tokens)
+            except Exception:
+                if attempt >= max_retries:
+                    raise  # 最终失败，向上抛出
+                continue  # 网络等问题可重试
 
-        # 成功（未截断）或已达最大重试次数，直接返回
-        if not is_truncated or attempt >= max_retries:
-            return full_content, tool_calls
+            # 非截断，或已无可用的增加空间，直接返回
+            if stop_reason != "max_tokens":
+                return full_text, tool_calls, stop_reason
 
-        next_tokens = max_token * 2
-        if next_tokens > max_tokens_limit:
-            return full_content, tool_calls
+            # 截断处理
+            if attempt >= max_retries:
+                print("达到最大重试次数，返回截断结果")
+                return full_text, tool_calls, stop_reason
 
-        max_token = next_tokens
+            # 如果有工具调用，则说明截断发生在文本部分（工具已完整）
+            if tool_calls:
+                # 将已生成的文本追加到对话，并要求继续
+                assistant_msg = build_assistant_message(full_text, [])
+                working_messages.append(assistant_msg)
+                working_messages.append({"role": "user", "content": "请继续输出剩余内容。"})
+                # 重置 max_tokens 为初始值，或适当增加
+                current_max_tokens = get_global_cfg.model_chat.initial_max_tokens
+                print("截断文本，使用续写策略继续生成。")
+            else:
+                # 没有工具调用，可能是纯文本截断或工具不完整已被丢弃
+                # 这里统一增加 max_tokens 并重试
+                next_tokens = current_max_tokens * 2
+                if next_tokens > max_tokens_limit:
+                    print("max_tokens 已达上限，返回截断结果")
+                    return full_text, tool_calls, stop_reason
+                current_max_tokens = next_tokens
+                # 注意：重试时不修改消息历史，即丢弃本次不完整输出
+                print("max_tokens 不足，增加至 %d 重试", current_max_tokens)
 
-        # 可选：追加用户消息让模型继续（见下文优化说明）
-        # messages = append_continuation(messages, full_content)
-
-    return "", []
-
+        # 兜底
+        return "", [], "end_turn"
 
