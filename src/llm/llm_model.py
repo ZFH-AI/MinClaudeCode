@@ -2,6 +2,11 @@ import httpx
 from anthropic import Anthropic
 from typing import List, Dict, Any, Tuple
 from llm.comm import *
+from utility.config_load import get_global_cfg
+
+# 流式打字机式输出
+def on_text_chunk(text: str):
+    print(text, end="", flush=True)
 
 class LLMClient:
     def __init__(self):
@@ -24,8 +29,7 @@ class LLMClient:
     def stream_chat(self, messages, system, tools, max_tokens) -> Tuple[str, List[Dict], str]:
         try:
             response = self.client.messages.create(model=self.model_name, system=system, messages=messages,
-                tools=tools,  max_tokens=max_tokens, temperature=self.temperature, stream=self.choice_stream
-            )
+                tools=tools,  max_tokens=max_tokens, temperature=self.temperature, stream=self.choice_stream)
         except Exception as e:
             raise RuntimeError(f"LLM API 调用失败: {e}") from e
 
@@ -53,6 +57,7 @@ class LLMClient:
                 delta = chunk.delta
                 if delta.type == "text_delta":
                     full_text += delta.text
+                    on_text_chunk(delta.text)
                 elif delta.type == "input_json_delta":
                     if current_tool is not None:
                         current_tool["input"] += delta.partial_json
