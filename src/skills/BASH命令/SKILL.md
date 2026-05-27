@@ -1,14 +1,6 @@
 ---
 name: bash
 description: "执行 Bash 命令并返回输出。支持设置工作目录、超时和环境变量。适用于运行脚本、编译代码、安装依赖、文件操作等任务。"
-input_schema:
-  type: object
-  properties:
-    command:
-      type: string
-      description: "要执行的 Bash 命令，例如 'ls -la' 或 'python script.py'。支持多行命令（用 \\n 分隔）。"
-  required: 
-   - command
 ---
 
 
