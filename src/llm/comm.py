@@ -1,24 +1,4 @@
 from typing import Callable, Dict, List
-from utility.config_load import get_global_cfg
-from pathlib import Path
-import json
-
-
-"""
-读取 .src/skills/skill_input_schema.json
-    - 记录每个skill的输入格式
-    - 读取之后作为工具列表传给LLM
-"""
-def get_skills_input_schema() -> List[Dict]:
-    skills_input_schema = Path(get_global_cfg.base_path.skill_root) /  "skill_input_schema.json"
-    try:
-        if not skills_input_schema.exists():
-            print(f"Skills的输入配置文件不存在：{skills_input_schema}")
-            return []
-        return json.loads(skills_input_schema.read_text(encoding="utf-8"))
-    except Exception as e:
-        print(f"[Error]没有提供Tools的输入格式{e}")
-    return []
 
 """
 LLM 的反馈
