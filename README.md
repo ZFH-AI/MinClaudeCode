@@ -28,11 +28,17 @@ MinClaudeCode
 
 ## 示例
 
+```shell
+将 src/config/config.yaml文件
+
 # 模型类型
 DeepSeek:
   api_key: "sk-xx"
 
 在运行时需要将这里修改为自己申请的API-KEY
+```
+
+
 
 python main.py
 ```shell
