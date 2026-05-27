@@ -28,6 +28,7 @@ model_chat:
   max_retries: 3             # 与 LLM 交互，如果失败，重试次数
   max_tokens_limit: 640000   # 单次请求 token 上限，最终值（不会比这个更高的）
   temperature: 0.3           # 创造性程度
+  choice_stream: True
 
 # 记忆系统存储配置
 memory:
