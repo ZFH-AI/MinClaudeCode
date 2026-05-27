@@ -7,6 +7,7 @@ from llm.llm_model import LLMClient
 from llm.llm_tool import TOOL_HANDLERS
 from message import msg_mng
 from llm.comm import *
+from utility.config_load import get_global_cfg
 
 # 负责与LLM交互
 class AgentLoop:
@@ -41,7 +42,7 @@ class AgentLoop:
         self.is_chat_mode = True
 
         # 初始化可用工具列表和系统提示词
-        tools = get_skills_input_schema()
+        tools = self.mng_msg.get_skills_meta_data()
         system_prompt  = self.mng_msg.get_system_prompt()
 
         # 初始化 LLM 客户端
