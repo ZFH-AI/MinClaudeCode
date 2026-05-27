@@ -40,7 +40,7 @@ DeepSeek:
 
 
 
-python main.py
+运行 python main.py
 ```shell
 ➤ You: (): 写个网页注册界面
 
