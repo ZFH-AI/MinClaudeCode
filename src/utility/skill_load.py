@@ -3,6 +3,9 @@ import yaml
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from utility.config_load import get_global_cfg
+import json
+
+
 """
 渐进式加载SKILL
   - 1、元数据层：扫描所有SKILL的name + description
@@ -23,7 +26,7 @@ def _parse_frontmatter(skill_path:Path) -> dict[Any, Any] | None:
         frontmatter_str = match.group(1)
         metadata = yaml.safe_load(frontmatter_str)
         # 确保必要字段存在
-        required_fields = ['name', 'description', 'input_schema']
+        required_fields = ['name', 'description']
         for field in required_fields:
             if field not in metadata:
                 raise ValueError(f"{skill_path} 缺少字段: {field}")
@@ -106,9 +109,64 @@ class SkillLoader:
         except (OSError, UnicodeDecodeError):
             return None
 
-    # 提供对外函数
-    def get_metadata(self) -> List[Dict[str, str]] | None:
-        return self._scan_skill_md()
+    """
+        -1、读取 src/skills 下面的所有的skill的 meat data 数据
+        -2、读取 src/skills/skill_input_schema.json 的数据
+        -3、将 meta data 数组有[name,description] -> 拓展 [name,description,input_schema]
+    """
+    def get_skill_metadata(self) -> List[Dict]:
+        skills_input_schema = Path(get_global_cfg.base_path.skill_root) / "skill_input_schema.json"
+        try:
+            schema_by_name = {}
+            if skills_input_schema.exists():
+                raw = json.loads(skills_input_schema.read_text(encoding="utf-8"))
+                if isinstance(raw, dict):
+                    schema_by_name = raw
+                else:
+                    if isinstance(raw, list):
+                        for item in raw:
+                            if isinstance(item, dict) and "name" in item and "input_schema" in item:
+                                schema_by_name[item["name"]] = item["input_schema"]
+
+            skills_meta_data = self._scan_skill_md()
+            if skills_meta_data is None:
+                return []
+            else:
+
+                skill_tools = [{
+                    "name": "use_skill",
+                    "description": "当用户请求匹配某个已安装技能时，调用此工具以获取该技能的完整操作指令。",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "skill_name": {
+                                "type": "string",
+                                "description": "要激活的技能名称，必须与已安装技能的名称完全一致"
+                            }
+                        },
+                        "required": ["skill_name"]
+                    }
+                }]
+
+                for skill in skills_meta_data:
+                    name = skill.get("name")
+                    if not name:
+                        continue
+
+                    input_schema = schema_by_name.get(name) or {
+                        "type": "object",
+                        "properties": {}
+                    }
+                    skill_tools.append({
+                        "name": name,
+                        "description": skill.get("description", ""),
+                        "input_schema": input_schema
+                    })
+
+                return skill_tools
+        except Exception as e:
+            print(f"[Error]没有提供Tools的输入格式{e}")
+            return []
 
     def format_skill_to_prompt(self) -> str | None:
         metadate = self._scan_skill_md()
@@ -130,7 +188,7 @@ class SkillLoader:
 
 #  全局获取 SkillLoader 单例，确保整个进程共用一个实例
 _skill_loader: Optional[SkillLoader] = None
-def get_skill_loader() -> SkillLoader | None:
+def get_skill_loader() -> SkillLoader:
     global _skill_loader
     if _skill_loader is None:
         skill_root = Path(get_global_cfg.base_path.skill_root)
