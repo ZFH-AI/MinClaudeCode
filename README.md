@@ -27,6 +27,13 @@ MinClaudeCode
 ```
 
 ## 示例
+
+# 模型类型
+DeepSeek:
+  api_key: "sk-xx"
+
+在运行时需要将这里修改为自己申请的API-KEY
+
 python main.py
 ```shell
 ➤ You: (): 写个网页注册界面
