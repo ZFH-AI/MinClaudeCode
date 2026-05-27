@@ -1,27 +1,6 @@
 ---
 name: write_file
 description: '将内容写入指定路径的文件。如果文件不存在则创建，如果存在则根据模式覆盖或追加。适用于生成代码、报告、配置等文本文件。'
-input_schema:
-  type: object
-  properties:
-    file_path:
-      type: string
-      description: '目标文件的绝对路径或相对于工作区根目录的路径。例如: "output/report.md" 或 "/data/config.json"'
-    content:
-      type: string
-      description: '要写入文件的完整文本内容。支持多行字符串，包含代码、文本等。'
-    mode:
-      type: string
-      enum: ["write", "append"]
-      description: '写入模式。write：覆盖原文件（默认）；append：追加到文件末尾。'
-      default: "write"
-    encoding:
-      type: string
-      description: '文件编码，默认为 utf-8'
-      default: "utf-8"
-  required:
-    - file_path
-    - content
 ---
 
 # 写文件工具详细说明
