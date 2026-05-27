@@ -65,9 +65,26 @@ def run_edit(path: str, old_text: str, new_text: str) -> str:
         return f"Error: {e}"
 
 
+def use_skill_tool(skill_name: str) -> str:
+    """
+    加载指定技能的完整操作手册。
+    返回: 技能的全文内容（去掉 front matter 后的纯文本），
+          若失败则返回带错误标记的字符串。
+    """
+    print(f"use skill tool: {skill_name}")
+    from utility.skill_load import get_skill_loader
+    skill_loader = get_skill_loader()
+    content = None
+    if skill_loader is not None:
+        content = skill_loader.load_full_content(skill_name)
+    if content is None:
+        return f"[CRITICAL ERROR] 技能 '{skill_name}' 不存在或无法加载。"
+    return content
+
 TOOL_HANDLERS = {
     "bash": lambda **kw: run_bash(kw["command"]),
     "read_file": lambda **kw: run_read(kw["path"], kw.get("limit")),
     "write_file": lambda **kw: run_write(kw["path"], kw["content"]),
     "edit_file": lambda **kw: run_edit(kw["path"], kw["old_text"], kw["new_text"]),
+    "use_skill": lambda **kw: use_skill_tool(kw["skill_name"]),
 }
