@@ -1,28 +1,6 @@
 ---
 name: read_file
 description: "读取指定路径的文件内容。支持文本文件，可指定编码、起始偏移量和读取长度。适用于查看代码、日志、配置文件等场景。"
-input_schema:
-  type: object
-  properties:
-    file_path:
-      type: string
-      description: "目标文件的绝对路径或相对于工作区根目录的路径。例如: \"src/main.py\" 或 \"/var/log/app.log\""
-    encoding:
-      type: string
-      description: "文件编码，默认为 utf-8"
-      default: "utf-8"
-    offset:
-      type: integer
-      description: "从文件开头的字节偏移量（非字符数），从0开始。用于读取大文件的部分内容。默认0"
-      default: 0
-      minimum: 0
-    length:
-      type: integer
-      description: "最多读取的字节数（非字符数）。不指定则读取至文件末尾。"
-      nullable: true
-      minimum: 1
-  required:
-    - file_path
 ---
 
 # 读文件工具详细说明
