@@ -3,7 +3,7 @@
 
 # 模型类型
 DeepSeek:
-  api_key: "sk-d6545a933eee4b429bd43c198c4026d7"
+  api_key: "sk-xx"
   base_url: "https://api.deepseek.com/anthropic"
   model_name: "deepseek-chat"
 
