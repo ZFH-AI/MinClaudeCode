@@ -80,8 +80,8 @@ DeepSeek:
 ## 3.1 本项目中的记忆管理
 
 
-"""
-Three-layer compression pipeline so the agent can work forever
+```shell
+four-layer compression pipeline so the agent can work forever
 
    Every Turn:
    +----------------------------+
@@ -147,7 +147,7 @@ Three-layer compression pipeline so the agent can work forever
                                                        |
                                                        |
                                                        V
-                                    Layer 4: compact tool
+                                    Layer 3: compact tool
                                     +-------------------------------------------------+
                                     | Final hard cropping                             |
                                     |                                                 |
@@ -155,7 +155,7 @@ Three-layer compression pipeline so the agent can work forever
                   
 Key insight :"The agent can forget strategically and keep working forever"
              
-"""
+```
 
 
 
