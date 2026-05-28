@@ -29,7 +29,7 @@ class LLMClient:
         self.client = Anthropic(api_key=self.api_key, base_url=self.base_url, http_client=self.http_client)
 
         # Agent的上下文记忆管理
-        self.memory_manager = MemoryManager(model_context_limit=80000, llm_client=self.client)
+        self.memory_manager = MemoryManager(self.model_name, model_context_limit=80000, llm_client=self.client)
 
     def stream_chat(self, messages, system, tools, max_tokens) -> Tuple[str, List[Dict], str]:
         try:
@@ -116,7 +116,7 @@ class LLMClient:
 
         # 获取处理后的上下文（包含短期压缩和长期记忆）
         processed_messages = self.memory_manager.get_context(messages, last_user_query)
-
+        print(processed_messages)
         # 保留原始消息副本，用于可能的重试/续写
         working_messages = [m.copy() for m in processed_messages]
         for attempt in range(max_retries + 1):
