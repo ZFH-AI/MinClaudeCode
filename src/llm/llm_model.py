@@ -2,7 +2,9 @@ import httpx
 from anthropic import Anthropic
 from typing import List, Dict, Any, Tuple
 from llm.comm import *
+from message.memory_mng import MemoryManager
 from utility.config_load import get_global_cfg
+import json
 
 # 流式打字机式输出
 def on_text_chunk(text: str):
@@ -25,6 +27,9 @@ class LLMClient:
 
         # 创建交互窗口
         self.client = Anthropic(api_key=self.api_key, base_url=self.base_url, http_client=self.http_client)
+
+        # Agent的上下文记忆管理
+        self.memory_manager = MemoryManager(model_context_limit=80000, llm_client=self.client)
 
     def stream_chat(self, messages, system, tools, max_tokens) -> Tuple[str, List[Dict], str]:
         try:
@@ -106,8 +111,14 @@ class LLMClient:
         max_tokens_limit = get_global_cfg.model_chat.max_tokens_limit
         current_max_tokens = get_global_cfg.model_chat.initial_max_tokens
 
+        # 在每次请求前，获取用户最新输入（最后一条 user 消息）
+        last_user_query = messages[-1]["content"] if messages else ""
+
+        # 获取处理后的上下文（包含短期压缩和长期记忆）
+        processed_messages = self.memory_manager.get_context(messages, last_user_query)
+
         # 保留原始消息副本，用于可能的重试/续写
-        working_messages = [m.copy() for m in messages]
+        working_messages = [m.copy() for m in processed_messages]
         for attempt in range(max_retries + 1):
             try:
                 full_text, tool_calls, stop_reason = self.stream_chat(working_messages, system, tools, current_max_tokens)
@@ -118,6 +129,8 @@ class LLMClient:
 
             # 非截断，或已无可用的增加空间，直接返回
             if stop_reason != "max_tokens":
+                # 将本次对话的重要信息存入长期记忆
+                self._store_conversation_memory(messages, full_text)
                 return full_text, tool_calls, stop_reason
 
             # 截断处理
@@ -148,3 +161,8 @@ class LLMClient:
         # 兜底
         return "", [], "end_turn"
 
+    def _store_conversation_memory(self, messages, final_response):
+        # 简单策略：如果对话较长或涉及决策，生成摘要并存储
+        if len(messages) > 10:
+            summary = self.memory_manager.generate_summary(messages[-10:])
+            self.memory_manager.store_memory(messages, summary)
