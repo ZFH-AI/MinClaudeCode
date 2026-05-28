@@ -55,6 +55,7 @@ DeepSeek:
 
 ✅ LLM 未调用工具，任务自动结束。
 ```
+<img width="2316" height="1690" alt="image" src="https://github.com/user-attachments/assets/9ec6b28e-1811-43d5-ac88-3f7d9c250c0b" />
 
 
 # 3、Memory管理
