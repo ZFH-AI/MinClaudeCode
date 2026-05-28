@@ -77,7 +77,85 @@ DeepSeek:
 - 存储层 (Storage Layer)：包含原始事件日志（完整记录所有交互）和结构化记忆（从日志中提取的关键信息）。对于后者，可以用 SQLite 存储关键词，同时生成 Embedding 存入向量数据库（如 Chroma、Qdrant）供语义检索
 - 操作层 (Operation Layer)：包含记忆抽取器（分析对话，决策是否提取记忆）和检索注入器（在每次请求前检索相关记忆）
 
+## 3.1 本项目中的记忆管理
 
+
+"""
+Three-layer compression pipeline so the agent can work forever
+
+   Every Turn:
+   +----------------------------+
+   | User + Tool call result    |
+   +----------------------------+
+            |
+            V
+    Layer 0 : Micro_compact (silent every turn)
+    +---------------------------------------------------------------------+
+    | replace non-read_file tool_result content older                     |
+    | than keep_recent_tool_results with "[Previous: used {tool_name}]"   |
+    +---------------------------------------------------------------------+
+            |
+            V
+    +--------------------------------------------------------------------+
+    | Only retain the most recent N rounds of conversation.              |
+    | Early messages that exceed the window are directly discarded       |
+    |                                                                    |
+    | Check: SlidingWindowMemory  > short_term_window_messages ?         |
+    +--------------------------------------------------------------------+
+        |                                      |
+        no                                     yes
+        |                                      |
+        V                                      V
+    continue                      Layer1 ： Sliding Window
++------------+                    +----------------------------------------------+
+| messages   |                    | messages[-self.short_term_window_messages:]  |
++------------+                    +----------------------------------------------+
+                                                |
+                                                |
+                                                V
+                                  +-------------------------------------------------------+
+                                  | Check used token and token_limit                      |
+                                  | user_token > model_context_limit * compression_ratio  |
+                                  +-------------------------------------------------------+
+                                                |
+                                                |
+                                                V
+                                   Layer 2 : auto_compact
+                                    +------------------------------------------------------------------------+
+                                    |    keep = min(self.keep_recent_messages, len(candidate_messages))      |
+                                    |    to_summarize = candidate_messages[:-keep]                           |
+                                    |    recent = candidate_messages[-keep:]                                 |
+                                    |                                                                        |
+                                    |    Ask LLM to summerize  to_summarize  conversation                    |
+                                    |    Replace all message with [summaey]                                  |
+                                    |                                                                        |
+                                    |   recent: Retain the original text portion.                            |
+                                    +------------------------------------------------------------------------+
+                                                       |
+                                                       V
+                                   +-------------------------------------------------------+
+                                   | Inject into long-term memory.                         |
+                                   |                                                       |
+                                   +-------------------------------------------------------+
+                                                       |
+                                                       |
+                                                       V
+                                  +-------------------------------------------------------+
+                                  | Check used token and token_limit                      |
+                                  | user_token > model_context_limit                      |
+                                  +-------------------------------------------------------+
+                                                       |
+                                                       |
+                                                       V
+                                    Layer 4: compact tool
+                                    +-------------------------------------------------+
+                                    | Final hard cropping                             |
+                                    |                                                 |
+                                    +-------------------------------------------------+
+                  
+Key insight :"The agent can forget strategically and keep working forever"
+             
+"""
 
 
 
