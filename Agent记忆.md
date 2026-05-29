@@ -1,4 +1,7 @@
-# 1、AI Agent记忆系统进化论：从上下文堆砌到智能记忆管理 
+
+
+# 2、Agent记忆系统的模式
+## 2.1、AI Agent记忆系统进化论：从上下文堆砌到智能记忆管理 
 链接：https://developer.baidu.com/article/detail.html?id=6986045
 
 主要观点：借鉴认知系统提供借鉴模型
@@ -8,7 +11,7 @@
 
 
   
-# 2、给Agent装上“海马体”！上海AILab开源MemVerse，定义多模态记忆新范式
+## 2.2、给Agent装上“海马体”！上海AILab开源MemVerse，定义多模态记忆新范式
 链接：https://developer.baidu.com/article/detail.html?id=6986045
 
 主要观点：三层仿生记忆架构，模拟了人类信息从暂存、结构化到内化的完整认知过程
@@ -18,10 +21,10 @@
 - 参数化记忆与周期性蒸馏：这是MemVerse的高效来源。系统会定期将长期记忆中的高价值知识，通过轻量微调“蒸馏”到一个专用的小模型中，实现知识的参数化内化。相当于让智能体将常用知识转化为“肌肉记忆”，检索响应速度提升10倍以上，解决了结构化存储的性能瓶颈
 
 
-# 3、Claude Code Context Window: Limits, Compaction, and How to Manage It
+## 2.3、Claude Code Context Window: Limits, Compaction, and How to Manage It
 链接：https://www.morphllm.com/claude-code-context-window
 
-## 3.1、Claude Code 20万窗口的分配
+### 1、Claude Code 20万窗口的分配
 Claude Code's 200K tokens are not all yours. The window is shared across every component the agent needs to function. Run /context in any Claude Code session to see the exact breakdown.
 | Component | Tokens | % of Window | Notes |
 | :--| :--:|:--:|:--:|
@@ -33,7 +36,7 @@ Claude Code's 200K tokens are not all yours. The window is shared across every c
 | Autocompact buffer       | 	~33,000	     |  16.5%	        | Reserved for compaction process
 | Free for conversation    |	~114,000	   |  57%	          | What you actually get to use
 
-## 3.2、自动压缩实现原理
+### 2、自动压缩实现原理
 当 Claude Code 接近上下文限制时，它会运行自动压缩功能：这是一个自动过程，用于汇总对话历史记录以释放空间。这可以确保会话无限期运行而不会崩溃，但这种汇总是有损的
 - 1、Tool outputs cleared first. Old file reads, grep results, and bash outputs are removed or truncated. These are the largest and least valuable tokens in a long session.
 
@@ -45,7 +48,7 @@ Claude Code's 200K tokens are not all yours. The window is shared across every c
 
   会话以摘要形式重新启动。精简后的摘要将成为新的上下文基线。代理程序将从此处继续执行
 
-## 3.3、自动压缩的触发时机
+### 3、自动压缩的触发时机
 Older versions of Claude Code waited until 90%+ capacity to compact. Current versions trigger much earlier, at 64-75% capacity. Anthropic's engineers built in a completion buffer so the agent has enough room to finish its current task before compaction interrupts.
 
 | Dimension	| Auto-Compact	| Manual /compact |
@@ -55,7 +58,7 @@ Older versions of Claude Code waited until 90%+ capacity to compact. Current ver
 |Preservation	|Generic summary	|Custom: '/compact preserve file paths and error codes'|
 |Risk	|May lose critical details	|You control what matters|
 
-## 3.4、隐藏的上下文损耗：MCP 工具和工具定义
+### 4、隐藏的上下文损耗：MCP 工具和工具定义
 现在，当 MCP 工具占用的上下文资源超过 10% 时，Claude Code 会自动启用工具搜索功能。工具搜索功能不会预先加载所有工具模式，而是延迟加载工具定义，并在需要时才加载。在一次基准测试中，这使得 MCP 令牌开销从 51K 减少到 8.5K，总上下文资源使用量降低了 46.9%
 
 其他隐藏的消耗
@@ -68,7 +71,7 @@ Older versions of Claude Code waited until 90%+ capacity to compact. Current ver
 - 3、累积对话：
 每条信息，包括你的一字确认，都会保持上下文关联。长时间的来回沟通会积累成千上万条低效的对话，从而稀释重要的信息。
 
-## 3.5、管理 Claude 代码上下文的七种策略
+### 5、管理 Claude 代码上下文的七种策略
 - 1、 **将持久化指令放入到CLAUDE.md文件中** CLAUDE.md 是一个特殊文件，Claude Code 会在每次会话开始时读取该文件，并在每次压缩周期中保留它。它是存放必须在整个会话期间保留的指令的唯一可靠位置。请将您的编码规范、项目结构、关键文件路径、常用命令和工作流程规则放在这里
 
   CLAUDE.md 文件应控制在 200 行以内，2000 个标记以内。它会在每次请求时加载到上下文中，因此臃肿的 CLAUDE.md 文件会占用额外的窗口资源。编写时应面向模型，而非面向人类：简洁、结构化、具体。
