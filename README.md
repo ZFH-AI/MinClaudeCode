@@ -158,5 +158,54 @@ Key insight :"The agent can forget strategically and keep working forever"
              
 ```
 
+## 3.2、六维度记忆架构
 
+- **休眠重塑**
+
+  1、AutoDream 自动整理
+  
+- **摘要记忆**
+
+  1、Session Memory 压缩机制
+  
+- **长期记忆**
+
+  1、memdir 分层知识库
+
+     /.claude/memory/
+
+        user / 用户画像
+
+        feedback / 行为反馈
+
+        project / 项目上下文
+
+        reference / 外部引用
+
+     MEMORY.md  全局索引，自动维护
+  
+- **工作记忆**
+
+   1、当前正在执行的任务
+
+- **短期记忆**
+  
+  1、完整对话历史，零压缩
+
+- **指令记忆**
+
+  1、4层级优先加载
+  
+       1）、etc/.../CLAUDE.md  组织策略
+  
+       2）、/.claude/CLAUDE.md  个人偏好
+  
+       3）、./CLAUDE.md   团队共享
+  
+       4)、CLAUDE.local.md    私有本地
+
+
+上述的完整记忆体系解决的核心问题：1、上下文遗忘；2、多终端同步；3、Token预算控制
+https://www.tgltommy.com
+### 指令记忆 CLAUDE.md体系
 
