@@ -20,7 +20,7 @@ http_client = httpx.Client(verify=False)
 
 llm = ChatOpenAI(
     model="deepseek-chat",
-    api_key="sk-d6545a933eee4b429bd43c198c4026d7",
+    api_key="sk-d6549bd43c196d7",
     base_url="https://api.deepseek.com/v1",
     http_client = http_client,
     temperature = 0.7,
@@ -79,7 +79,7 @@ def travel_node(state: State):
                     "command": "npx",
                     "args": ["-y", "@amap/amap-maps-mcp-server"],
                     "env": {
-                        "AMAP_MAPS_API_KEY": "f124e073db66b4384255b42823e1ecdc"
+                        "AMAP_MAPS_API_KEY": "f124e073db66b455b42823e1ecdc"
                     }
                 }
             }
